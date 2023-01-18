@@ -1,0 +1,147 @@
+---
+title: "Life Expectancy Over Time Analysis"
+author: "Pablo Gomez"
+date: "2022-10-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+
+#Load relevant libraries
+library('dplyr')
+library('ggplot2')
+library('gapminder')
+
+#1. Load gapminder dataset
+data <- gapminder
+#2. Calculate mean and standard deviation life expectancy for each continent year
+ex2 <- data %>%
+  select(country,continent, year, lifeExp,pop,gdpPercap) %>%
+  group_by(continent,year) %>%
+  summarise(mean = mean(lifeExp), standard_deviation = sd(lifeExp))
+
+#3. Plot the mean as a line
+ggplot(ex2,aes(year,mean)) + 
+  geom_line() 
+#4. Plot standard deviation as a ribbon
+ggplot(ex2,aes(year,mean)) + 
+  geom_ribbon(aes(ymin=mean-standard_deviation,ymax=mean+standard_deviation),fill = 'grey')+
+  geom_line()
+#5. Facet by continent
+ggplot(ex2,aes(year,mean)) + 
+  geom_ribbon(aes(ymin=mean-standard_deviation,ymax=mean+standard_deviation),fill = 'grey')+
+  geom_line()+
+  facet_wrap(vars(continent), scales = 'free')
+#6. Plot individual country-year values of life expectancy as points on a plot
+ex6 <- data %>%
+  left_join(y=ex2,by = c("continent"="continent","year"="year"))
+# Use join statement to consolidate all information into single data frame which helps simplify mapping for ggplot  
+ggplot(ex6,aes(year,mean)) + 
+  geom_ribbon(aes(ymin=mean-standard_deviation,ymax=mean+standard_deviation),fill = 'grey')+
+  geom_line()+
+  geom_point(aes(year,lifeExp))+
+  facet_wrap(vars(continent), scales = 'free')
+#7. Filter out the countries in the top or bottom 20% of observations of life expectancy for the given continent-year
+ex7 <- ex6 %>%
+  group_by(continent,year)%>%
+  summarise(bottom_twenty = quantile(lifeExp, probs = 0.20),
+            top_twenty = quantile(lifeExp, probs = 0.80))
+ex7_all <- ex6 %>%
+  left_join(y = ex7, by = c("continent"="continent","year"="year")) #Use join for easier anlalysis
+ex7_all <- ex7_all %>%
+  filter((lifeExp >= bottom_twenty)&(lifeExp <= top_twenty)) #filter out the in between 60% of country-year that fulfill constraints
+
+#8. Plot the remaining countries
+ggplot(ex7_all,aes(year,mean)) + 
+  geom_ribbon(aes(ymin=mean-standard_deviation,ymax=mean+standard_deviation),fill = 'grey')+
+  geom_line()+
+  geom_point(aes(year,lifeExp))+
+  facet_wrap(vars(continent), scales = 'free')
+
+#9. Calculate the distance between individual country-year values and the continent-year mean for life expectancy
+ex9 <- ex7_all %>%
+  mutate(variance = abs(mean - lifeExp))
+
+#10. Vary the transparency of your points such that points further from the continent-year mean of life expectancy
+variance_range <- c(1,0) #Create range from high number to low so the opacity of the point increases as the number gets more away from zero
+variance_breaks <- c(0:max(ex9$variance)/2) #The breaks help contrast the levels of opacity when number gets farther away from zero
+
+ggplot(ex9,aes(year,mean)) + 
+  geom_ribbon(aes(ymin=mean-standard_deviation,ymax=mean+standard_deviation),fill = 'grey')+
+  geom_line()+
+  geom_point(aes(year,lifeExp,alpha = variance))+
+  scale_alpha_continuous(range = variance_range,breaks = variance_breaks)+
+  facet_wrap(vars(continent), scales = 'free')
+  
+#11. Calculate the mean total population for each continent-year
+ex11 <- data %>%
+  group_by(continent, year)%>%
+  summarise(population_mean = mean(pop))
+
+ex11_all <- ex9 %>%
+  left_join(y = ex11, by = c("continent"="continent","year"="year"))
+
+#12. Create a binary variable that indicates whether the given country-year has a population above or
+# below the mean population for the continent-year
+ex12 <- ex11_all %>%
+  mutate(population_analysis = ifelse(pop>population_mean,"Above Average","Below Average"))
+variance_range <- c(1,0) #Create range from high number to low so the opacity of the point increases as the number gets more away from zero
+variance_breaks <- c(0:max(ex12$variance)/2) #The breaks help contrast the levels of opacity when number gets farther away from zero
+#13. Color Points according to variable
+ggplot(ex12,aes(year,mean)) + 
+  geom_ribbon(aes(ymin=mean-standard_deviation,ymax=mean+standard_deviation),fill = 'grey')+
+  geom_line()+
+  geom_point(aes(year,lifeExp,alpha = variance,color = population_analysis))+
+  scale_alpha_continuous(range = variance_range,breaks = variance_breaks)+
+  facet_wrap(vars(continent), scales = 'free')
+
+#14. Jitter the points
+ggplot(ex12,aes(year,mean)) + 
+  geom_ribbon(aes(ymin=mean-standard_deviation,ymax=mean+standard_deviation),fill = 'grey')+
+  geom_line()+
+  geom_jitter(aes(year,lifeExp,alpha = variance,color = population_analysis))+ #Change geom to make points more evenly spread out
+  scale_alpha_continuous(range = variance_range,breaks = variance_breaks)+
+  facet_wrap(vars(continent), scales = 'free')
+
+#15. Have facets scales vary by facet
+ggplot(ex12,aes(year,mean)) + 
+  geom_ribbon(aes(ymin=mean-standard_deviation,ymax=mean+standard_deviation),fill = 'grey')+
+  geom_line()+
+  geom_jitter(aes(year,lifeExp,alpha = variance,color = population_analysis))+
+  scale_alpha_continuous(range = variance_range,breaks = variance_breaks)+
+  facet_wrap(vars(continent), scales = 'free')
+
+#16. Hide legends
+ggplot(ex12,aes(year,mean)) + 
+  geom_ribbon(aes(ymin=mean-standard_deviation,ymax=mean+standard_deviation),fill = 'grey')+
+  geom_line()+
+  geom_jitter(aes(year,lifeExp,alpha = variance,color = population_analysis))+
+  scale_alpha_continuous(range = variance_range,breaks = variance_breaks)+
+  facet_wrap(vars(continent), scales = 'free')+
+  guides(color = 'none', alpha = "none")
+
+#17. Give visualization a title and x and y-axis
+variance_range <- c(1,0) #Create range from high number to low so the opacity of the point increases as the number gets more away from zero
+variance_breaks <- c(0:max(ex12$variance)/2) #The breaks help contrast the levels of opacity when number gets farther away from zero
+
+final_viz <- ggplot(ex12,aes(year,mean)) + 
+  geom_ribbon(aes(ymin=mean-standard_deviation,ymax=mean+standard_deviation),fill = 'grey')+
+  geom_line()+
+  geom_jitter(aes(x=year,y=lifeExp,alpha = variance,color = population_analysis,size = pop))+
+  scale_alpha_continuous(range = variance_range,breaks = variance_breaks)+
+  facet_wrap(vars(continent), scales = 'free')+
+  guides(color = 'none', alpha = "none",size = 'none')+
+  labs(x="Year",y="Life Expectancy",title = "Life Expectancy by Continent")+
+  theme_bw()
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r,echo=FALSE,fig.align='center'}
+final_viz
+```
+In this analysis we use various GGPlot objects in order to demonstrate the average life expectancy of a given country year by year. By using the 'facet' object, the analysis is divided by Continent. Using the 'ribbon' function we demonstrate the variation of a given continent.Using the size of a point, the proportion of the country's population. Using the alpha function, we demonstrate the deviation of a given data point from its mean, the more transparent it becomes, the more variation is experienced. 
+
+In the final results we see significant differences between the each continent and how over the years life expectancy has changed. Europe has the least amount of variation while Africa has the most. Life Expectancy has steadily grown overtime for all except Africa. Europe has the highest levels of life expectancy while Africa has the lowest. 
